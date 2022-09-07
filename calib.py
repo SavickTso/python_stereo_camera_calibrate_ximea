@@ -4,7 +4,11 @@ import numpy as np
 import sys
 from scipy import linalg
 import yaml
+from ximea import xiapi
 import os
+from sys import platform
+import argparse
+import time
 
 #This will contain the calibration settings from the calibration_settings.yaml file
 calibration_settings = {}
@@ -48,7 +52,7 @@ def parse_calibration_settings_file(filename):
 
 
 #Open camera stream and save frames
-def save_frames_single_camera(camera_name):
+def save_frames_single_camera(camera_name, devnum):
 
     #create frames directory
     if not os.path.exists('frames'):
@@ -56,8 +60,51 @@ def save_frames_single_camera(camera_name):
 
     #get settings
     camera_device_id = calibration_settings[camera_name]
-    width = calibration_settings['frame_width']
-    height = calibration_settings['frame_height']
+    CAMERAS_ON_SAME_CONTROLLER = 2
+
+    #create instance for cameras
+    cam1 = xiapi.Camera(dev_id=devnum)
+
+    #start communication
+    print('Opening cameras...')
+    cam1.open_device_by_SN(camera_device_id)
+
+    #set interface data rate
+    interface_data_rate=cam1.get_limit_bandwidth()
+    camera_data_rate = int(interface_data_rate / CAMERAS_ON_SAME_CONTROLLER)
+
+    #set data rate
+    cam1.set_limit_bandwidth(camera_data_rate)
+
+    #print device serial numbers
+    print('Camera 1 serial number: ' + str(cam1.get_device_sn()))
+
+
+    # create instance for first connected camera
+    #cam = xiapi.Camera()
+
+    # start communication
+    #print('Opening first camera...')
+    #cam.open_device()
+
+    # settings
+    cam1.set_exposure(2000)
+    cam1.set_gain(10.0)
+    cam1.set_imgdataformat('XI_MONO8')
+    cam1.set_width(320)
+    cam1.set_height(240)
+    #cam.set_limit_bandwidth_mode()
+    cam1.set_offsetX(480)
+    cam1.set_offsetY(384)
+
+
+    # create instance of Image to store image data and metadata
+    img1 = xiapi.Image()
+
+    # start data acquisition
+    print('Starting data acquisition...')
+    cam1.start_acquisition()
+
     number_to_save = calibration_settings['mono_calibration_frames']
     view_resize = calibration_settings['view_resize']
     cooldown_time = calibration_settings['cooldown']
@@ -65,8 +112,14 @@ def save_frames_single_camera(camera_name):
     #open video stream and change resolution.
     #Note: if unsupported resolution is used, this does NOT raise an error.
     cap = cv.VideoCapture(camera_device_id)
-    cap.set(3, width)
-    cap.set(4, height)
+    # cap.set(3, width)
+    # cap.set(4, height)
+    cam1.get_image(img1)
+
+        # create numpy array with data from camera. Dimensions of the array are
+        # determined by imgdataformat
+    data1 = img1.get_image_data_numpy()
+
     
     cooldown = cooldown_time
     start = False
@@ -74,13 +127,13 @@ def save_frames_single_camera(camera_name):
 
     while True:
     
-        ret, frame = cap.read()
-        if ret == False:
-            #if no video data is received, can't calibrate the camera, so exit.
-            print("No video data received from camera. Exiting...")
-            quit()
+        # ret, frame = cap.read()
+        # if ret == False:
+        #     #if no video data is received, can't calibrate the camera, so exit.
+        #     print("No video data received from camera. Exiting...")
+        #     quit()
 
-        frame_small = cv.resize(frame, None, fx = 1/view_resize, fy=1/view_resize)
+        frame_small = cv.resize(data1, None, fx = 1/view_resize, fy=1/view_resize)
 
         if not start:
             cv.putText(frame_small, "Press SPACEBAR to start collection frames", (50,50), cv.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 1)
@@ -93,7 +146,7 @@ def save_frames_single_camera(camera_name):
             #save the frame when cooldown reaches 0.
             if cooldown <= 0:
                 savename = os.path.join('frames', camera_name + '_' + str(saved_count) + '.png')
-                cv.imwrite(savename, frame)
+                cv.imwrite(savename, data1)
                 saved_count += 1
                 cooldown = cooldown_time
 
@@ -205,7 +258,7 @@ def save_camera_intrinsics(camera_matrix, distortion_coefs, camera_name):
 
 
 #open both cameras and take calibration frames
-def save_frames_two_cams(camera0_name, camera1_name):
+def save_frames_two_cams(camera0_name, devnum1, camera1_name, devnum2):
 
     #create frames directory
     if not os.path.exists('frames_pair'):
@@ -217,31 +270,103 @@ def save_frames_two_cams(camera0_name, camera1_name):
     number_to_save = calibration_settings['stereo_calibration_frames']
 
     #open the video streams
-    cap0 = cv.VideoCapture(calibration_settings[camera0_name])
-    cap1 = cv.VideoCapture(calibration_settings[camera1_name])
+    # cap0 = cv.VideoCapture(calibration_settings[camera0_name])
+    # cap1 = cv.VideoCapture(calibration_settings[camera1_name])
 
     #set camera resolutions
-    width = calibration_settings['frame_width']
-    height = calibration_settings['frame_height']
-    cap0.set(3, width)
-    cap0.set(4, height)
-    cap1.set(3, width)
-    cap1.set(4, height)
+    # width = calibration_settings['frame_width']
+    # height = calibration_settings['frame_height']
+    # cap0.set(3, width)
+    # cap0.set(4, height)
+    # cap1.set(3, width)
+    # cap1.set(4, height)
+
+    CAMERAS_ON_SAME_CONTROLLER = 2
+
+    #create instance for cameras
+    cam1 = xiapi.Camera(dev_id=devnum1)
+    cam2 = xiapi.Camera(dev_id=devnum2)
+    #start communication
+    print('Opening cameras...')
+    cam1.open_device_by_SN(calibration_settings[camera0_name])
+    cam2.open_device_by_SN(calibration_settings[camera1_name])
+
+    #set interface data rate
+    interface_data_rate=cam1.get_limit_bandwidth()
+    camera_data_rate = int(interface_data_rate / CAMERAS_ON_SAME_CONTROLLER)
+
+    #set data rate
+    cam1.set_limit_bandwidth(camera_data_rate)
+    cam2.set_limit_bandwidth(camera_data_rate)
+
+    #print device serial numbers
+    print('Camera 1 serial number: ' + str(cam1.get_device_sn()))
+    print('Camera 2 serial number: ' + str(cam2.get_device_sn()))
+
+    # create instance for first connected camera
+    #cam = xiapi.Camera()
+
+    # start communication
+    #print('Opening first camera...')
+    #cam.open_device()
+
+    # settings
+    cam1.set_exposure(2000)
+    cam1.set_gain(10.0)
+    cam1.set_imgdataformat('XI_MONO8')
+    cam1.set_width(320)
+    cam1.set_height(240)
+    #cam.set_limit_bandwidth_mode()
+    cam1.set_offsetX(480)
+    cam1.set_offsetY(384)
+    cam2.set_exposure(2000)
+    cam2.set_gain(10.0)
+    cam2.set_imgdataformat('XI_MONO8')
+    cam2.set_width(320)
+    cam2.set_height(240)
+    #cam.set_limit_bandwidth_mode()
+    cam2.set_offsetX(480)
+    cam2.set_offsetY(384)
+
+
+    # create instance of Image to store image data and metadata
+    img1 = xiapi.Image()
+    img2 = xiapi.Image()
+
+    # start data acquisition
+    print('Starting data acquisition...')
+
+    number_to_save = calibration_settings['mono_calibration_frames']
+    view_resize = calibration_settings['view_resize']
+    cooldown_time = calibration_settings['cooldown']
+
+    #open video stream and change resolution.
+    #Note: if unsupported resolution is used, this does NOT raise an error.
+    #cap = cv.VideoCapture(camera_device_id)
+    # cap.set(3, width)
+    # cap.set(4, height)
+    cam1.get_image(img1)
+    cam2.get_image(img2)
+
+        # create numpy array with data from camera. Dimensions of the array are
+        # determined by imgdataformat
+    data1 = img1.get_image_data_numpy()
+    data2 = img2.get_image_data_numpy()
 
     cooldown = cooldown_time
     start = False
     saved_count = 0
     while True:
 
-        ret0, frame0 = cap0.read()
-        ret1, frame1 = cap1.read()
+        #ret0, frame0 = cap0.read()
+        #ret1, frame1 = cap1.read()
 
-        if not ret0 or not ret1:
-            print('Cameras not returning video data. Exiting...')
-            quit()
+        # if not ret0 or not ret1:
+        #     print('Cameras not returning video data. Exiting...')
+        #     quit()
 
-        frame0_small = cv.resize(frame0, None, fx=1./view_resize, fy=1./view_resize)
-        frame1_small = cv.resize(frame1, None, fx=1./view_resize, fy=1./view_resize)
+        frame0_small = cv.resize(data1, None, fx=1./view_resize, fy=1./view_resize)
+        frame1_small = cv.resize(data2, None, fx=1./view_resize, fy=1./view_resize)
 
         if not start:
             cv.putText(frame0_small, "Make sure both cameras can see the calibration pattern well", (50,50), cv.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 1)
@@ -258,10 +383,10 @@ def save_frames_two_cams(camera0_name, camera1_name):
             #save the frame when cooldown reaches 0.
             if cooldown <= 0:
                 savename = os.path.join('frames_pair', camera0_name + '_' + str(saved_count) + '.png')
-                cv.imwrite(savename, frame0)
+                cv.imwrite(savename, data1)
 
                 savename = os.path.join('frames_pair', camera1_name + '_' + str(saved_count) + '.png')
-                cv.imwrite(savename, frame1)
+                cv.imwrite(savename, data2)
 
                 saved_count += 1
                 cooldown = cooldown_time
@@ -371,7 +496,7 @@ def get_projection_matrix(cmtx, R, T):
     return P
 
 # After calibrating, we can see shifted coordinate axes in the video feeds directly
-def check_calibration(camera0_name, camera0_data, camera1_name, camera1_data, _zshift = 50.):
+def check_calibration(camera0_name, devnum1, camera0_data, camera1_name, devnum2, camera1_data, _zshift = 50.):
     
     cmtx0 = np.array(camera0_data[0])
     dist0 = np.array(camera0_data[1])
@@ -415,26 +540,93 @@ def check_calibration(camera0_name, camera0_data, camera1_name, camera1_data, _z
     pixel_points_camera0 = np.array(pixel_points_camera0)
     pixel_points_camera1 = np.array(pixel_points_camera1)
 
-    #open the video streams
-    cap0 = cv.VideoCapture(calibration_settings[camera0_name])
-    cap1 = cv.VideoCapture(calibration_settings[camera1_name])
+    CAMERAS_ON_SAME_CONTROLLER = 2
 
-    #set camera resolutions
-    width = calibration_settings['frame_width']
-    height = calibration_settings['frame_height']
-    cap0.set(3, width)
-    cap0.set(4, height)
-    cap1.set(3, width)
-    cap1.set(4, height)
+    #create instance for cameras
+    cam1 = xiapi.Camera(dev_id=devnum1)
+    cam2 = xiapi.Camera(dev_id=devnum2)
+    #start communication
+    print('Opening cameras...')
+    cam1.open_device_by_SN(calibration_settings[camera0_name])
+    cam2.open_device_by_SN(calibration_settings[camera1_name])
+
+    #set interface data rate
+    interface_data_rate=cam1.get_limit_bandwidth()
+    camera_data_rate = int(interface_data_rate / CAMERAS_ON_SAME_CONTROLLER)
+
+    #set data rate
+    cam1.set_limit_bandwidth(camera_data_rate)
+    cam2.set_limit_bandwidth(camera_data_rate)
+
+    #print device serial numbers
+    print('Camera 1 serial number: ' + str(cam1.get_device_sn()))
+    print('Camera 2 serial number: ' + str(cam2.get_device_sn()))
+
+    # create instance for first connected camera
+    #cam = xiapi.Camera()
+
+    # start communication
+    #print('Opening first camera...')
+    #cam.open_device()
+
+    # settings
+    cam1.set_exposure(2000)
+    cam1.set_gain(10.0)
+    cam1.set_imgdataformat('XI_MONO8')
+    cam1.set_width(320)
+    cam1.set_height(240)
+    #cam.set_limit_bandwidth_mode()
+    cam1.set_offsetX(480)
+    cam1.set_offsetY(384)
+    cam2.set_exposure(2000)
+    cam2.set_gain(10.0)
+    cam2.set_imgdataformat('XI_MONO8')
+    cam2.set_width(320)
+    cam2.set_height(240)
+    #cam.set_limit_bandwidth_mode()
+    cam2.set_offsetX(480)
+    cam2.set_offsetY(384)
+
+
+    # create instance of Image to store image data and metadata
+    img1 = xiapi.Image()
+    img2 = xiapi.Image()
+
+    # start data acquisition
+    print('Starting data acquisition...')
+
+    #open video stream and change resolution.
+    #Note: if unsupported resolution is used, this does NOT raise an error.
+    #cap = cv.VideoCapture(camera_device_id)
+    # cap.set(3, width)
+    # cap.set(4, height)
+    cam1.get_image(img1)
+    cam2.get_image(img2)
+
+        # create numpy array with data from camera. Dimensions of the array are
+        # determined by imgdataformat
+    data1 = img1.get_image_data_numpy()
+    data2 = img2.get_image_data_numpy()
+    #open the video streams
+    # cap0 = cv.VideoCapture(calibration_settings[camera0_name])
+    # cap1 = cv.VideoCapture(calibration_settings[camera1_name])
+
+    # #set camera resolutions
+    # width = calibration_settings['frame_width']
+    # height = calibration_settings['frame_height']
+    # cap0.set(3, width)
+    # cap0.set(4, height)
+    # cap1.set(3, width)
+    # cap1.set(4, height)
 
     while True:
 
-        ret0, frame0 = cap0.read()
-        ret1, frame1 = cap1.read()
+        # ret0, frame0 = cap0.read()
+        # ret1, frame1 = cap1.read()
 
-        if not ret0 or not ret1:
-            print('Video stream not returning frame data')
-            quit()
+        # if not ret0 or not ret1:
+        #     print('Video stream not returning frame data')
+        #     quit()
 
         #follow RGB colors to indicate XYZ axes respectively
         colors = [(0,0,255), (0,255,0), (255,0,0)]
@@ -442,16 +634,16 @@ def check_calibration(camera0_name, camera0_data, camera1_name, camera1_data, _z
         origin = tuple(pixel_points_camera0[0].astype(np.int32))
         for col, _p in zip(colors, pixel_points_camera0[1:]):
             _p = tuple(_p.astype(np.int32))
-            cv.line(frame0, origin, _p, col, 2)
+            cv.line(data1, origin, _p, col, 2)
         
         #draw projections to camera1
         origin = tuple(pixel_points_camera1[0].astype(np.int32))
         for col, _p in zip(colors, pixel_points_camera1[1:]):
             _p = tuple(_p.astype(np.int32))
-            cv.line(frame1, origin, _p, col, 2)
+            cv.line(data2, origin, _p, col, 2)
 
-        cv.imshow('frame0', frame0)
-        cv.imshow('frame1', frame1)
+        cv.imshow('frame0', data1)
+        cv.imshow('frame1', data2)
 
         k = cv.waitKey(1)
         if k == 27: break
@@ -565,18 +757,19 @@ def save_extrinsic_calibration_parameters(R0, T0, R1, T1, prefix = ''):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) != 2:
-        print('Call with settings filename: "python3 calibrate.py calibration_settings.yaml"')
-        quit()
-    
-    #Open and parse the settings file
-    parse_calibration_settings_file(sys.argv[1])
 
+
+    # if len(sys.argv) != 2:
+    #     print('Call with settings filename: "python3 calibrate.py calibration_settings.yaml"')
+    #     quit()
+
+    #Open and parse the settings file
+    parse_calibration_settings_file("calibration_settings.yaml")
 
     """Step1. Save calibration frames for single cameras"""
-    save_frames_single_camera('camera0') #save frames for camera0
-    save_frames_single_camera('camera1') #save frames for camera1
-
+    save_frames_single_camera('camera0', 0) #save frames for camera0
+    save_frames_single_camera('camera1', 1) #save frames for camera1
+    print("cali saved")
 
     """Step2. Obtain camera intrinsic matrices and save them"""
     #camera0 intrinsics
@@ -590,7 +783,7 @@ if __name__ == '__main__':
 
 
     """Step3. Save calibration frames for both cameras simultaneously"""
-    save_frames_two_cams('camera0', 'camera1') #save simultaneous frames
+    save_frames_two_cams('camera0', 0, 'camera1', 1) #save simultaneous frames
 
 
     """Step4. Use paired calibration pattern frames to obtain camera0 to camera1 rotation and translation"""
@@ -609,7 +802,7 @@ if __name__ == '__main__':
     #check your calibration makes sense
     camera0_data = [cmtx0, dist0, R0, T0]
     camera1_data = [cmtx1, dist1, R1, T1]
-    check_calibration('camera0', camera0_data, 'camera1', camera1_data, _zshift = 60.)
+    check_calibration('camera0', 0, camera0_data, 'camera1', 1, camera1_data, _zshift = 60.)
 
 
     """Optional. Define a different origin point and save the calibration data"""
