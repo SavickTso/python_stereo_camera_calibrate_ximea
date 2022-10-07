@@ -87,15 +87,16 @@ def save_frames_single_camera(camera_name, devnum):
     #print('Opening first camera...')
     #cam.open_device()
 
-    # settings
+    # settingss
     cam1.set_exposure(2000)
     cam1.set_gain(10.0)
     cam1.set_imgdataformat('XI_MONO8')
-    cam1.set_width(320)
-    cam1.set_height(240)
+    cam1.set_width(720)
+    cam1.set_height(720)
     #cam.set_limit_bandwidth_mode()
-    cam1.set_offsetX(480)
-    cam1.set_offsetY(384)
+    cam1.set_offsetX(240)
+    cam1.set_offsetY(152)
+
 
 
     # create instance of Image to store image data and metadata
@@ -111,14 +112,10 @@ def save_frames_single_camera(camera_name, devnum):
 
     #open video stream and change resolution.
     #Note: if unsupported resolution is used, this does NOT raise an error.
-    cap = cv.VideoCapture(camera_device_id)
+    #cap = cv.VideoCapture(camera_device_id)
     # cap.set(3, width)
     # cap.set(4, height)
-    cam1.get_image(img1)
-
-        # create numpy array with data from camera. Dimensions of the array are
-        # determined by imgdataformat
-    data1 = img1.get_image_data_numpy()
+    
 
     
     cooldown = cooldown_time
@@ -126,7 +123,12 @@ def save_frames_single_camera(camera_name, devnum):
     saved_count = 0
 
     while True:
-    
+        cam1.get_image(img1)
+
+        # create numpy array with data from camera. Dimensions of the array are
+        # determined by imgdataformat
+        data1 = img1.get_image_data_numpy()
+
         # ret, frame = cap.read()
         # if ret == False:
         #     #if no video data is received, can't calibrate the camera, so exit.
@@ -314,19 +316,20 @@ def save_frames_two_cams(camera0_name, devnum1, camera1_name, devnum2):
     cam1.set_exposure(2000)
     cam1.set_gain(10.0)
     cam1.set_imgdataformat('XI_MONO8')
-    cam1.set_width(320)
-    cam1.set_height(240)
+    cam1.set_width(720)
+    cam1.set_height(720)
     #cam.set_limit_bandwidth_mode()
-    cam1.set_offsetX(480)
-    cam1.set_offsetY(384)
+    cam1.set_offsetX(240)
+    cam1.set_offsetY(152)
+
     cam2.set_exposure(2000)
     cam2.set_gain(10.0)
     cam2.set_imgdataformat('XI_MONO8')
-    cam2.set_width(320)
-    cam2.set_height(240)
+    cam2.set_width(720)
+    cam2.set_height(720)
     #cam.set_limit_bandwidth_mode()
-    cam2.set_offsetX(480)
-    cam2.set_offsetY(384)
+    cam2.set_offsetX(240)
+    cam2.set_offsetY(152)
 
 
     # create instance of Image to store image data and metadata
@@ -345,19 +348,19 @@ def save_frames_two_cams(camera0_name, devnum1, camera1_name, devnum2):
     #cap = cv.VideoCapture(camera_device_id)
     # cap.set(3, width)
     # cap.set(4, height)
-    cam1.get_image(img1)
-    cam2.get_image(img2)
-
-        # create numpy array with data from camera. Dimensions of the array are
-        # determined by imgdataformat
-    data1 = img1.get_image_data_numpy()
-    data2 = img2.get_image_data_numpy()
+    
 
     cooldown = cooldown_time
     start = False
     saved_count = 0
     while True:
+        cam1.get_image(img1)
+        cam2.get_image(img2)
 
+            # create numpy array with data from camera. Dimensions of the array are
+            # determined by imgdataformat
+        data1 = img1.get_image_data_numpy()
+        data2 = img2.get_image_data_numpy()
         #ret0, frame0 = cap0.read()
         #ret1, frame1 = cap1.read()
 
@@ -573,19 +576,20 @@ def check_calibration(camera0_name, devnum1, camera0_data, camera1_name, devnum2
     cam1.set_exposure(2000)
     cam1.set_gain(10.0)
     cam1.set_imgdataformat('XI_MONO8')
-    cam1.set_width(320)
-    cam1.set_height(240)
+    cam1.set_width(720)
+    cam1.set_height(720)
     #cam.set_limit_bandwidth_mode()
-    cam1.set_offsetX(480)
-    cam1.set_offsetY(384)
+    cam1.set_offsetX(240)
+    cam1.set_offsetY(152)
+
     cam2.set_exposure(2000)
     cam2.set_gain(10.0)
     cam2.set_imgdataformat('XI_MONO8')
-    cam2.set_width(320)
-    cam2.set_height(240)
+    cam2.set_width(720)
+    cam2.set_height(720)
     #cam.set_limit_bandwidth_mode()
-    cam2.set_offsetX(480)
-    cam2.set_offsetY(384)
+    cam2.set_offsetX(240)
+    cam2.set_offsetY(152)
 
 
     # create instance of Image to store image data and metadata
@@ -593,20 +597,7 @@ def check_calibration(camera0_name, devnum1, camera0_data, camera1_name, devnum2
     img2 = xiapi.Image()
 
     # start data acquisition
-    print('Starting data acquisition...')
-
-    #open video stream and change resolution.
-    #Note: if unsupported resolution is used, this does NOT raise an error.
-    #cap = cv.VideoCapture(camera_device_id)
-    # cap.set(3, width)
-    # cap.set(4, height)
-    cam1.get_image(img1)
-    cam2.get_image(img2)
-
-        # create numpy array with data from camera. Dimensions of the array are
-        # determined by imgdataformat
-    data1 = img1.get_image_data_numpy()
-    data2 = img2.get_image_data_numpy()
+    
     #open the video streams
     # cap0 = cv.VideoCapture(calibration_settings[camera0_name])
     # cap1 = cv.VideoCapture(calibration_settings[camera1_name])
@@ -620,7 +611,20 @@ def check_calibration(camera0_name, devnum1, camera0_data, camera1_name, devnum2
     # cap1.set(4, height)
 
     while True:
+        print('Starting data acquisition...')
 
+        #open video stream and change resolution.
+        #Note: if unsupported resolution is used, this does NOT raise an error.
+        #cap = cv.VideoCapture(camera_device_id)
+        # cap.set(3, width)
+        # cap.set(4, height)
+        cam1.get_image(img1)
+        cam2.get_image(img2)
+
+            # create numpy array with data from camera. Dimensions of the array are
+            # determined by imgdataformat
+        data1 = img1.get_image_data_numpy()
+        data2 = img2.get_image_data_numpy()
         # ret0, frame0 = cap0.read()
         # ret1, frame1 = cap1.read()
 
